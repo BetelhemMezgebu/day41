@@ -1,4 +1,6 @@
+
 import { placeOrder } from "../actions";
+import OrderStatus from "./OrderStatus";
 
 export default function CheckoutPage() {
   return (
@@ -7,33 +9,19 @@ export default function CheckoutPage() {
 
       <form action={placeOrder}>
         <div>
-          <label htmlFor="name">
-            Name
-          </label>
-
-          <input
-            id="name"
-            name="name"
-            required
-          />
+          <label htmlFor="name">Name</label>
+          <input id="name" name="name" required />
         </div>
 
         <div>
-          <label htmlFor="phone">
-            Phone
-          </label>
-
-          <input
-            id="phone"
-            name="phone"
-            required
-          />
+          <label htmlFor="phone">Phone</label>
+          <input id="phone" name="phone" required />
         </div>
 
-        <button type="submit">
-          Place Order
-        </button>
+        <button type="submit">Place Order</button>
       </form>
+
+      <OrderStatus />
     </section>
   );
 }
