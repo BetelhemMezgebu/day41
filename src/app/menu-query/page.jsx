@@ -3,151 +3,167 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
+
+const STORAGE_KEY = "addisEatsDishes";
+
+const initialDishes = [
+  { id: 1, name: "Kitfo", price: 350, category: "traditional", description: "Minced beef Ethiopian dish." },
+  { id: 2, name: "Doro Wot", price: 400, category: "traditional", description: "Spicy chicken stew served with injera." },
+  { id: 3, name: "Shiro", price: 250, category: "vegetarian", description: "Chickpea stew." },
+  { id: 4, name: "Chechebsa", price: 220, category: "traditional", description: "Flatbread mixed with spiced butter." },
+];
 
 async function fetchDishes() {
-  const response = await fetch("/api/dishes?page=1&limit=10");
+  if (typeof window === "undefined") return initialDishes;
+
+  const saved = localStorage.getItem(STORAGE_KEY);
+
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
+  const response = await fetch("/api/dishes?limit=10");
 
   if (!response.ok) {
-    throw new Error("Failed to fetch menu");
+    throw new Error("Could not load dishes.");
   }
 
   const result = await response.json();
-  return result.dishes;
+  const dishes = result.dishes ?? initialDishes;
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(dishes));
+  return dishes;
 }
 
-async function addDish(newDish) {
-  const response = await fetch("/api/dishes/add", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(newDish),
-  });
+async function saveDish(dish) {
+  const existing = await fetchDishes();
 
-  const result = await response.json();
+  const newDish = {
+    ...dish,
+    id: Date.now(),
+    price: Number(dish.price),
+  };
 
-  if (!response.ok) {
-    throw new Error(result.message || "Failed to add dish");
-  }
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify([...existing, newDish])
+  );
 
-  return result.dish;
+  return newDish;
 }
 
 export default function MenuQueryPage() {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-
   const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("traditional");
+  const [description, setDescription] = useState("");
 
   const {
-    data: dishes,
+    data: dishes = [],
+    isLoading,
+    isError,
     error,
-    isPending,
-    isFetching,
   } = useQuery({
     queryKey: ["dishes"],
     queryFn: fetchDishes,
   });
 
-  const mutation = useMutation({
-    mutationFn: addDish,
-
+  const addDishMutation = useMutation({
+    mutationFn: saveDish,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["dishes"],
-      });
-
+      await queryClient.invalidateQueries({ queryKey: ["dishes"] });
       setName("");
-      setDescription("");
       setPrice("");
+      setCategory("traditional");
+      setDescription("");
     },
   });
 
   function handleSubmit(event) {
     event.preventDefault();
 
-    mutation.mutate({
-      name,
-      description,
+    if (!name.trim() || Number(price) <= 0) return;
+
+    addDishMutation.mutate({
+      name: name.trim(),
       price: Number(price),
-      category: "traditional",
+      category,
+      description: description.trim(),
     });
   }
 
-  if (isPending) return <p>Loading menu...</p>;
-
-  if (error) {
-    return <p>Could not load menu: {error.message}</p>;
-  }
-
   return (
-    <section>
-      <h2>Menu with TanStack Query</h2>
-
-      <h3>Add a Dish</h3>
+    <main>
+      <h1>Menu — TanStack Query</h1>
 
       <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="dish-name">Dish name</label>
-          <input
-            id="dish-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-        </div>
+        <h2>Add a dish</h2>
 
-        <div>
-          <label htmlFor="dish-description">Description</label>
-          <input
-            id="dish-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            required
-          />
-        </div>
+        <label htmlFor="dish-name">Dish name</label>
+        <input
+          id="dish-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+        />
 
-        <div>
-          <label htmlFor="dish-price">Price (ETB)</label>
-          <input
-            id="dish-price"
-            type="number"
-            min="1"
-            value={price}
-            onChange={(event) => setPrice(event.target.value)}
-            required
-          />
-        </div>
+        <label htmlFor="dish-price">Price (ETB)</label>
+        <input
+          id="dish-price"
+          type="number"
+          min="1"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+          required
+        />
 
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Adding..." : "Add Dish"}
+        <label htmlFor="dish-category">Category</label>
+        <select
+          id="dish-category"
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+        >
+          <option value="traditional">Traditional</option>
+          <option value="vegetarian">Vegetarian</option>
+        </select>
+
+        <label htmlFor="dish-description">Description</label>
+        <input
+          id="dish-description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+
+        <button type="submit" disabled={addDishMutation.isPending}>
+          {addDishMutation.isPending ? "Adding..." : "Add dish"}
         </button>
+
+        {addDishMutation.isError && (
+          <p role="alert">{addDishMutation.error.message}</p>
+        )}
+
+        {addDishMutation.isSuccess && <p>Dish added successfully!</p>}
       </form>
 
-      {mutation.isError && (
-        <p role="alert">{mutation.error.message}</p>
-      )}
+      <h2>Available dishes</h2>
 
-      {mutation.isSuccess && (
-        <p>Dish added successfully!</p>
-      )}
+      {isLoading && <p>Loading dishes...</p>}
+      {isError && <p role="alert">{error.message}</p>}
 
-      <hr />
-
-      <h3>Available Dishes</h3>
-
-      {isFetching && <p>Refreshing menu...</p>}
-
-      {dishes.map((dish) => (
-        <article key={dish.id}>
-          <h3>{dish.name}</h3>
-          <p>{dish.description}</p>
-          <p>{dish.price} ETB</p>
-          <Link href={`/menu/${dish.id}`}>View Dish</Link>
-        </article>
-      ))}
-    </section>
+      <ul>
+        {dishes.map((dish) => (
+          <li key={dish.id}>
+            <strong>{dish.name}</strong> — {dish.price} ETB
+            <p>{dish.category}</p>
+            <p>{dish.description}</p>
+          </li>
+        ))}
+      </ul>
+    </main>
   );
 }

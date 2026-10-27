@@ -3,22 +3,35 @@
 
 import useSWR from "swr";
 
-const fetcher = async (url) => {
-  const response = await fetch(url);
+function getSavedOrder(initialOrder) {
+  try {
+    const saved = localStorage.getItem("addisEatsOrder");
 
-  if (!response.ok) {
-    throw new Error("Could not fetch order status");
+    if (saved) {
+      const order = JSON.parse(saved);
+
+      if (order.orderId === initialOrder.orderId) {
+        return order;
+      }
+    }
+  } catch {
+    // Use the server-provided initial order if storage is unavailable.
   }
 
-  return response.json();
-};
+  return initialOrder;
+}
+
+async function fetchOrder(initialOrder) {
+  const savedOrder = getSavedOrder(initialOrder);
+  return savedOrder;
+}
 
 export default function OrderStatus({ initialOrder }) {
-  const orderId = initialOrder.orderId;
-
-  const { data, error, isLoading, isValidating } = useSWR(
-    `/api/orders/${orderId}`,
-    fetcher,
+  const { data, error, isLoading } = useSWR(
+    initialOrder?.orderId
+      ? ["addis-eats-order", initialOrder.orderId]
+      : null,
+    () => fetchOrder(initialOrder),
     {
       fallbackData: initialOrder,
       refreshInterval: 5000,
@@ -26,26 +39,22 @@ export default function OrderStatus({ initialOrder }) {
     }
   );
 
-  if (isLoading && !data) {
-    return <p>Loading order status...</p>;
-  }
-
-  if (error && !data) {
-    return <p>Could not load order status. Please try again.</p>;
-  }
+  if (isLoading && !data) return <p>Loading order status...</p>;
+  if (error && !data) return <p>Could not load the order status.</p>;
+  if (!data) return <p>No order found.</p>;
 
   return (
     <section>
-      <h3>Order Status</h3>
-
+      <h2>Order Status</h2>
       <p>Order ID: {data.orderId}</p>
       <p>Status: {data.status}</p>
       <p>
         Last updated:{" "}
-        {new Date(data.updatedAt).toLocaleTimeString()}
+        {data.updatedAt
+          ? new Date(data.updatedAt).toLocaleString()
+          : "Not available"}
       </p>
-
-      {isValidating && <p>Checking for updates...</p>}
+      <p>Order status refreshes every five seconds.</p>
     </section>
   );
 }
