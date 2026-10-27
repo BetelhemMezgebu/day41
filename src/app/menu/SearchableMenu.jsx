@@ -22,20 +22,11 @@ export default function SearchableMenu() {
   const [page, setPage] = useState(1);
 
   const searchParams = useSearchParams();
-  const category = searchParams.get("category");
-
-  const {
-    data,
-    error,
-    isLoading,
-    isValidating,
-  } = useSWR(`/api/dishes?page=${page}&limit=2`, fetcher, {
-    keepPreviousData: true,
-  });
+  const category = searchParams.get("category") || "";
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      setDebouncedSearch(search);
+      setDebouncedSearch(search.trim());
     }, 300);
 
     return () => clearTimeout(timeoutId);
@@ -44,6 +35,16 @@ export default function SearchableMenu() {
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, category]);
+
+  const apiUrl = `/api/dishes?q=${encodeURIComponent(
+    debouncedSearch
+  )}&category=${encodeURIComponent(category)}&page=${page}&limit=2`;
+
+  const { data, error, isLoading, isValidating } = useSWR(
+    apiUrl,
+    fetcher,
+    { keepPreviousData: true }
+  );
 
   if (isLoading && !data) {
     return <p>Loading menu...</p>;
@@ -54,18 +55,6 @@ export default function SearchableMenu() {
   }
 
   const dishes = data?.dishes ?? [];
-
-  const filteredDishes = dishes.filter((dish) => {
-    const matchesSearch = dish.name
-      .toLowerCase()
-      .includes(debouncedSearch.trim().toLowerCase());
-
-    const matchesCategory =
-      !category || dish.category === category;
-
-    return matchesSearch && matchesCategory;
-  });
-
   const totalPages = data?.totalPages ?? 1;
 
   return (
@@ -81,6 +70,7 @@ export default function SearchableMenu() {
         onChange={(event) => setSearch(event.target.value)}
       />
 
+      {search !== debouncedSearch && <p>Updating search...</p>}
       {isValidating && <p>Updating menu...</p>}
 
       {category && (
@@ -91,20 +81,17 @@ export default function SearchableMenu() {
       )}
 
       <div>
-        {filteredDishes.length > 0 ? (
-          filteredDishes.map((dish) => (
+        {dishes.length > 0 ? (
+          dishes.map((dish) => (
             <article key={dish.id}>
               <h3>{dish.name}</h3>
               <p>{dish.description}</p>
               <p>{dish.price} ETB</p>
-
-              <Link href={`/menu/${dish.id}`}>
-                View Dish
-              </Link>
+              <Link href={`/menu/${dish.id}`}>View Dish</Link>
             </article>
           ))
         ) : (
-          <p>No dishes found on this page.</p>
+          <p>No dishes found.</p>
         )}
       </div>
 
@@ -112,21 +99,20 @@ export default function SearchableMenu() {
         <button
           type="button"
           onClick={() => setPage((current) => Math.max(1, current - 1))}
-          disabled={page === 1}
+          disabled={page === 1 || isValidating}
         >
           Previous
         </button>
 
         <span>
-          {" "}Page {page} of {totalPages}{" "}
+          {" "}Page {data?.page ?? page} of {totalPages}{" "}
+          (Total dishes: {data?.total ?? 0}){" "}
         </span>
 
         <button
           type="button"
-          onClick={() =>
-            setPage((current) => Math.min(totalPages, current + 1))
-          }
-          disabled={page >= totalPages}
+          onClick={() => setPage((current) => current + 1)}
+          disabled={page >= totalPages || isValidating}
         >
           Next
         </button>

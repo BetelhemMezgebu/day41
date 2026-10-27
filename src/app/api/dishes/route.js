@@ -2,9 +2,17 @@
 import { NextResponse } from "next/server";
 import { getDishes } from "../../../lib/dishes";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+
+    const search = (searchParams.get("q") || "")
+      .trim()
+      .toLowerCase();
+
+    const category = searchParams.get("category") || "";
 
     const page = Math.max(
       1,
@@ -20,19 +28,38 @@ export async function GET(request) {
     );
 
     const allDishes = await getDishes();
-    const total = allDishes.length;
-    const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    const start = (page - 1) * limit;
-    const dishes = allDishes.slice(start, start + limit);
+    // Filter before pagination.
+    const filteredDishes = allDishes.filter((dish) => {
+      const matchesSearch = dish.name
+        .toLowerCase()
+        .includes(search);
 
-    return NextResponse.json({
-      dishes,
-      page,
-      limit,
-      total,
-      totalPages,
+      const matchesCategory =
+        !category || dish.category === category;
+
+      return matchesSearch && matchesCategory;
     });
+
+    const total = filteredDishes.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const currentPage = Math.min(page, totalPages);
+    const start = (currentPage - 1) * limit;
+
+    return NextResponse.json(
+      {
+        dishes: filteredDishes.slice(start, start + limit),
+        page: currentPage,
+        limit,
+        total,
+        totalPages,
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     console.error("Failed to fetch dishes:", error);
 

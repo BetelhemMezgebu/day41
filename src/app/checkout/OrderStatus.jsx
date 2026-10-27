@@ -13,31 +13,39 @@ const fetcher = async (url) => {
   return response.json();
 };
 
-export default function OrderStatus() {
+export default function OrderStatus({ initialOrder }) {
+  const orderId = initialOrder.orderId;
+
   const { data, error, isLoading, isValidating } = useSWR(
-    "/api/orders/status",
+    `/api/orders/${orderId}`,
     fetcher,
     {
+      fallbackData: initialOrder,
       refreshInterval: 5000,
       revalidateOnFocus: true,
     }
   );
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return <p>Loading order status...</p>;
   }
 
-  if (error) {
-    return <p>Could not load order status.</p>;
+  if (error && !data) {
+    return <p>Could not load order status. Please try again.</p>;
   }
 
   return (
     <section>
-      <h2>Order Status Demo</h2>
-      <p>Order: {data.orderId}</p>
+      <h3>Order Status</h3>
+
+      <p>Order ID: {data.orderId}</p>
       <p>Status: {data.status}</p>
-      <p>Last checked: {new Date(data.updatedAt).toLocaleTimeString()}</p>
-      <p>{isValidating ? "Checking status..." : "Waiting for next check"}</p>
+      <p>
+        Last updated:{" "}
+        {new Date(data.updatedAt).toLocaleTimeString()}
+      </p>
+
+      {isValidating && <p>Checking for updates...</p>}
     </section>
   );
 }

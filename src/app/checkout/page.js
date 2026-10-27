@@ -3,6 +3,12 @@ import { placeOrder } from "../actions";
 import OrderStatus from "./OrderStatus";
 
 export default function CheckoutPage() {
+  const initialOrder = {
+    orderId: "DEMO-1001",
+    status: "Preparing",
+    updatedAt: new Date().toISOString(),
+  };
+
   return (
     <section>
       <h2>Checkout</h2>
@@ -21,7 +27,7 @@ export default function CheckoutPage() {
         <button type="submit">Place Order</button>
       </form>
 
-      <OrderStatus />
+      <OrderStatus initialOrder={initialOrder} />
     </section>
   );
 }
